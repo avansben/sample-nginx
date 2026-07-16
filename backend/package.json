@@ -1,7 +1,7 @@
 {
   "name": "sample-backend",
   "version": "1.0.0",
-  "description": "Tiny backend for nginx reverse proxy learning",
+  "description": "Express API for the nginx reverse-proxy lab. Exposes /hello, /health, /messages, and /stats. Called by nginx at /api/* and connects to PostgreSQL via the pg driver.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

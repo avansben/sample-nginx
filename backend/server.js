@@ -1,3 +1,5 @@
+// Express API for the guestbook lab. Listens on port 3000 inside the backend container.
+// nginx forwards browser requests from /api/* to these routes (prefix stripped).
 const express = require('express');
 const { pool, waitForDb, initSchema } = require('./db');
 
@@ -6,6 +8,7 @@ const port = 3000;
 
 app.use(express.json());
 
+// Convert a database row (snake_case columns) to the JSON shape the frontend expects.
 function mapMessage(row) {
   return {
     id: row.id,
@@ -15,6 +18,7 @@ function mapMessage(row) {
   };
 }
 
+// Simple demo endpoint — proves the proxy path from nginx → backend works.
 app.get('/hello', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT COUNT(*)::int AS count FROM messages');
@@ -31,6 +35,7 @@ app.get('/hello', async (req, res) => {
   }
 });
 
+// Used by the frontend status banner to show whether PostgreSQL is reachable.
 app.get('/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -41,6 +46,7 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// List guestbook entries, optionally filtered by ?search= (matches author or text).
 app.get('/messages', async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
 
@@ -70,6 +76,7 @@ app.get('/messages', async (req, res) => {
   }
 });
 
+// Create a new guestbook entry from JSON body { author, text }.
 app.post('/messages', async (req, res) => {
   const author = typeof req.body.author === 'string' ? req.body.author.trim() : '';
   const text = typeof req.body.text === 'string' ? req.body.text.trim() : '';
@@ -93,6 +100,7 @@ app.post('/messages', async (req, res) => {
   }
 });
 
+// Remove a single message by numeric id.
 app.delete('/messages/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id) || id < 1) {
@@ -111,6 +119,7 @@ app.delete('/messages/:id', async (req, res) => {
   }
 });
 
+// Aggregate stats for the dashboard: totals, latest message, top authors.
 app.get('/stats', async (req, res) => {
   try {
     const [summaryResult, authorsResult] = await Promise.all([
@@ -148,6 +157,7 @@ app.get('/stats', async (req, res) => {
   }
 });
 
+// Wait for PostgreSQL, ensure schema exists, then start accepting requests.
 async function start() {
   await waitForDb();
   await initSchema();

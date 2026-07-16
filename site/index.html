@@ -7,18 +7,25 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!--
+    Single-page demo served by nginx as a static file.
+    All API calls use relative /api/ paths — nginx proxies those to the backend container.
+  -->
   <main class="card">
     <h1>Nginx reverse proxy lab</h1>
     <p>This page is served by nginx. API calls go through the proxy at <code>/api/</code>. Messages are stored in PostgreSQL and survive container restarts.</p>
 
+    <!-- Live connection status from GET /api/health -->
     <div id="dbStatus" class="status status-loading">Checking database...</div>
 
+    <!-- Calls GET /api/hello to verify the reverse proxy works -->
     <section>
       <h2>Hello endpoint</h2>
       <button id="loadMessage">Load backend message</button>
       <pre id="output">Click the button to call /api/hello</pre>
     </section>
 
+    <!-- Aggregate counts from GET /api/stats -->
     <section>
       <h2>Guestbook stats</h2>
       <div id="statsPanel" class="stats-panel">
@@ -26,6 +33,7 @@
       </div>
     </section>
 
+    <!-- CRUD UI: POST/GET/DELETE /api/messages with client-side search -->
     <section>
       <h2>Guestbook</h2>
       <form id="messageForm">
@@ -50,6 +58,7 @@
   </main>
 
   <script>
+    // DOM references for the interactive sections below.
     const button = document.getElementById('loadMessage');
     const output = document.getElementById('output');
     const messageForm = document.getElementById('messageForm');
@@ -64,6 +73,7 @@
       return new Date(iso).toLocaleString();
     }
 
+    // Prevent XSS when rendering user-submitted author/text into innerHTML.
     function escapeHtml(value) {
       return value
         .replaceAll('&', '&amp;')
@@ -73,6 +83,7 @@
         .replaceAll("'", '&#39;');
     }
 
+    // Poll backend health on page load to update the status banner.
     async function checkHealth() {
       try {
         const res = await fetch('/api/health');
@@ -90,6 +101,7 @@
       }
     }
 
+    // Fetch summary stats and render the dashboard cards.
     async function loadStats() {
       try {
         const res = await fetch('/api/stats');
@@ -138,6 +150,7 @@
       }
     });
 
+    // Load guestbook entries; optional ?search= query for live filtering.
     async function loadMessages(search = '') {
       const query = search ? `?search=${encodeURIComponent(search)}` : '';
       const res = await fetch(`/api/messages${query}`);
@@ -181,6 +194,7 @@
       await Promise.all([loadMessages(searchInput.value.trim()), loadStats()]);
     }
 
+    // Event delegation: handle delete clicks on dynamically rendered list items.
     messageList.addEventListener('click', async (event) => {
       const button = event.target.closest('.delete-btn');
       if (!button) {
@@ -213,6 +227,7 @@
       await Promise.all([loadMessages(searchInput.value.trim()), loadStats()]);
     });
 
+    // Debounce search input so we don't hit the API on every keystroke.
     searchInput.addEventListener('input', () => {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
@@ -220,6 +235,7 @@
       }, 250);
     });
 
+    // Initial data load when the page opens.
     checkHealth();
     loadStats();
     loadMessages();
