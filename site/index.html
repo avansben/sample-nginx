@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nginx + Backend + PostgreSQL</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card">
+    <h1>Nginx reverse proxy lab</h1>
+    <p>This page is served by nginx. API calls go through the proxy at <code>/api/</code>. Messages are stored in PostgreSQL and survive container restarts.</p>
+
+    <div id="dbStatus" class="status status-loading">Checking database...</div>
+
+    <section>
+      <h2>Hello endpoint</h2>
+      <button id="loadMessage">Load backend message</button>
+      <pre id="output">Click the button to call /api/hello</pre>
+    </section>
+
+    <section>
+      <h2>Guestbook stats</h2>
+      <div id="statsPanel" class="stats-panel">
+        <p class="muted">Loading stats from SQL...</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Guestbook</h2>
+      <form id="messageForm">
+        <label>
+          Name
+          <input id="author" name="author" type="text" placeholder="Your name" required />
+        </label>
+        <label>
+          Message
+          <textarea id="text" name="text" rows="3" placeholder="Leave a note" required></textarea>
+        </label>
+        <button type="submit">Post message</button>
+      </form>
+
+      <label class="search-label">
+        Search messages
+        <input id="searchInput" type="search" placeholder="Filter by author or text..." />
+      </label>
+
+      <ul id="messageList"></ul>
+    </section>
+  </main>
+
+  <script>
+    const button = document.getElementById('loadMessage');
+    const output = document.getElementById('output');
+    const messageForm = document.getElementById('messageForm');
+    const messageList = document.getElementById('messageList');
+    const dbStatus = document.getElementById('dbStatus');
+    const statsPanel = document.getElementById('statsPanel');
+    const searchInput = document.getElementById('searchInput');
+
+    let searchTimer;
+
+    function formatDate(iso) {
+      return new Date(iso).toLocaleString();
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    async function checkHealth() {
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        if (res.ok && data.database === 'connected') {
+          dbStatus.textContent = 'PostgreSQL connected — messages persist across restarts';
+          dbStatus.className = 'status status-ok';
+        } else {
+          dbStatus.textContent = 'Database unavailable — API is degraded';
+          dbStatus.className = 'status status-error';
+        }
+      } catch (err) {
+        dbStatus.textContent = 'Could not reach backend health endpoint';
+        dbStatus.className = 'status status-error';
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/stats');
+        if (!res.ok) {
+          throw new Error('Failed to load stats');
+        }
+        const data = await res.json();
+
+        const latest = data.latestMessageAt
+          ? `<p><strong>Latest message:</strong> ${formatDate(data.latestMessageAt)}</p>`
+          : '<p class="muted">No messages in the database yet.</p>';
+
+        const topAuthors = data.topAuthors.length
+          ? `<ul class="stats-list">${data.topAuthors.map((entry) =>
+              `<li><strong>${escapeHtml(entry.author)}</strong> — ${entry.count} message${entry.count === 1 ? '' : 's'}</li>`
+            ).join('')}</ul>`
+          : '';
+
+        statsPanel.innerHTML = `
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-value">${data.totalMessages}</span>
+              <span class="stat-label">Total messages</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value">${data.uniqueAuthors}</span>
+              <span class="stat-label">Unique authors</span>
+            </div>
+          </div>
+          ${latest}
+          ${topAuthors ? `<p><strong>Top authors</strong></p>${topAuthors}` : ''}
+        `;
+      } catch (err) {
+        statsPanel.innerHTML = '<p class="muted">Could not load stats.</p>';
+      }
+    }
+
+    button.addEventListener('click', async () => {
+      output.textContent = 'Loading...';
+      try {
+        const res = await fetch('/api/hello');
+        const data = await res.json();
+        output.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        output.textContent = 'Request failed: ' + err.message;
+      }
+    });
+
+    async function loadMessages(search = '') {
+      const query = search ? `?search=${encodeURIComponent(search)}` : '';
+      const res = await fetch(`/api/messages${query}`);
+      const data = await res.json();
+      messageList.innerHTML = '';
+
+      if (!res.ok) {
+        messageList.innerHTML = '<li class="muted">Failed to load messages.</li>';
+        return;
+      }
+
+      if (data.messages.length === 0) {
+        messageList.innerHTML = search
+          ? `<li class="muted">No messages match "${escapeHtml(search)}".</li>`
+          : '<li class="muted">No messages yet. Post one above!</li>';
+        return;
+      }
+
+      for (const message of data.messages) {
+        const item = document.createElement('li');
+        item.className = 'message-item';
+        item.innerHTML = `
+          <div class="message-body">
+            <strong>${escapeHtml(message.author)}</strong>
+            <p>${escapeHtml(message.text)}</p>
+            <small>${formatDate(message.createdAt)} · id ${message.id}</small>
+          </div>
+          <button type="button" class="delete-btn" data-id="${message.id}">Delete</button>
+        `;
+        messageList.appendChild(item);
+      }
+    }
+
+    async function deleteMessage(id) {
+      const res = await fetch(`/api/messages/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.error || 'Failed to delete message');
+        return;
+      }
+      await Promise.all([loadMessages(searchInput.value.trim()), loadStats()]);
+    }
+
+    messageList.addEventListener('click', async (event) => {
+      const button = event.target.closest('.delete-btn');
+      if (!button) {
+        return;
+      }
+      const id = button.dataset.id;
+      if (confirm(`Delete message #${id}?`)) {
+        await deleteMessage(id);
+      }
+    });
+
+    messageForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const author = document.getElementById('author').value;
+      const text = document.getElementById('text').value;
+
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author, text })
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.error || 'Failed to post message');
+        return;
+      }
+
+      messageForm.reset();
+      await Promise.all([loadMessages(searchInput.value.trim()), loadStats()]);
+    });
+
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        loadMessages(searchInput.value.trim());
+      }, 250);
+    });
+
+    checkHealth();
+    loadStats();
+    loadMessages();
+  </script>
+</body>
+</html>

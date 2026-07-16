@@ -1,0 +1,13 @@
+{
+  "name": "sample-backend",
+  "version": "1.0.0",
+  "description": "Tiny backend for nginx reverse proxy learning",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}
