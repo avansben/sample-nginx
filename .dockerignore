@@ -1,5 +1,43 @@
 # Exclude files from the Docker build context (nginx image build).
 # Smaller context = faster builds; secrets and VCS metadata stay out of images.
+
+# Version control
 .git
-*.log
+.gitignore
+.github/
+
+# Documentation
 README.md
+CONTRIBUTING.md
+LICENSE
+
+# Logs
+*.log
+logs/
+
+# Dependencies (not needed in final image)
+node_modules/
+*.lock
+yarn.lock
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+
+# IDE
+.vscode/
+.idea/
+
+# Database
+pgdata/
+*.dump
+
+# Temporary
+*.tmp
+.gradle
+

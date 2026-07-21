@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Environment variables (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+
+# Docker
+docker-compose.override.yaml
+.dockerignore
+
+# Database volumes (local persistence, not needed in repo)
+pgdata/
+*.dump
+*.sql.bak
+
+# Temporary files
+*.tmp
+*.log
+*.pid
+dist/
+build/
